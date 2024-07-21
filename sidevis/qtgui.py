@@ -27,21 +27,13 @@ from PyQt6.QtWidgets import (
 from vispy.app import use_app
 from vispy.scene import SceneCanvas, AxisWidget, visuals
 
-fname = './numpy-samples'
-with open(f'{fname}.pkl', 'rb') as f:
-    TRACES = pickle.load(f)
-    for idx, t in enumerate(TRACES):
-        TRACES[idx] = np.concat([t])
-
-def raw_to_plot(arr):
-    line_data = np.empty((2, arr.shape[0]), np.uint32)
-    line_data[0] = np.arange(arr.shape[0])
-    line_data[1] = arr
-    return line_data.T
+from .camera import ScaZoomCamera
+from .fileadapter import PickleFileAdapter
 
 # NOTE: Uncomment this import to enable icons
 # import qrc_resources
 
+FNAME = 'numpy-samples'
 
 class Window(QMainWindow):
     """Main Window."""
@@ -49,10 +41,15 @@ class Window(QMainWindow):
     def __init__(self, parent=None):
         """Initializer."""
         super().__init__(parent)
-        self.setWindowTitle("Python Menus & Toolbars")
+        self.setWindowTitle(f"sidevis - {FNAME}")
         self.resize(1200, 600)
-        self.traceCanvas = TraceCanvas()
+
+        self.fileAdapter = PickleFileAdapter(FNAME)
+
+        self.traceCanvas = TraceCanvas(self.fileAdapter)
         self.centralWidget = self.traceCanvas.canvas.native # QLabel("Hello, World")
+
+
         # self.centralWidget.setAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
         self.setCentralWidget(self.centralWidget)
         self._createActions()
@@ -93,7 +90,7 @@ class Window(QMainWindow):
         findMenu.addAction("Find...")
         findMenu.addAction("Replace...")
         # Help menu
-        helpMenu = menuBar.addMenu(QIcon(":help-content.svg"), "&Help")
+        helpMenu = menuBar.addMenu("&Help")
         helpMenu.addAction(self.helpContentAction)
         helpMenu.addAction(self.aboutAction)
 
@@ -137,9 +134,8 @@ class Window(QMainWindow):
         # File actions
         self.newAction = QAction(self)
         self.newAction.setText("&New")
-        self.newAction.setIcon(QIcon(":file-new.svg"))
-        self.openAction = QAction(QIcon(":file-open.svg"), "&Open...", self)
-        self.saveAction = QAction(QIcon(":file-save.svg"), "&Save", self)
+        self.openAction = QAction("&Open...", self)
+        self.saveAction = QAction("&Save", self)
         self.exitAction = QAction("&Exit", self)
         # String-based key sequences
         self.newAction.setShortcut("Ctrl+N")
@@ -151,9 +147,9 @@ class Window(QMainWindow):
         self.newAction.setToolTip(newTip)
         self.newAction.setWhatsThis("Create a new and empty text file")
         # Edit actions
-        self.copyAction = QAction(QIcon(":edit-copy.svg"), "&Copy", self)
-        self.pasteAction = QAction(QIcon(":edit-paste.svg"), "&Paste", self)
-        self.cutAction = QAction(QIcon(":edit-cut.svg"), "C&ut", self)
+        self.copyAction = QAction("&Copy", self)
+        self.pasteAction = QAction("&Paste", self)
+        self.cutAction = QAction("C&ut", self)
         # Standard key sequence
         self.copyAction.setShortcut(QKeySequence.StandardKey.Copy)
         self.pasteAction.setShortcut(QKeySequence.StandardKey.Paste)
@@ -212,7 +208,7 @@ class Window(QMainWindow):
         self.resetCameraAction.triggered.connect(self.resetCamera)
 
         self.rootTraceSpinBox.valueChanged.connect(self.setRootTrace)
-        self.traceViewCountSpinBox.valueChanged.connect(self.setViewCount)
+    # self.traceViewCountSpinBox.valueChanged.connect(self.setViewCount)
 
     # Slots
     def newFile(self):
@@ -284,7 +280,8 @@ class Window(QMainWindow):
         return 42
 
 class TraceCanvas:
-    def __init__(self, view_count=3):
+    def __init__(self, file_adapter, view_count=3):
+        self.file_adapter = file_adapter
 
         # def on_mouse_double_click(event):
         #     print('on_mouse_double_click!')
@@ -370,7 +367,8 @@ class TraceCanvas:
         
         """
 
-        line_view = self.grid.add_view(row=view_pos, col=1, camera="panzoom")
+        line_view = self.grid.add_view(row=view_pos, col=1)
+        line_view.camera = ScaZoomCamera()
         self.views[view_pos] = line_view
         visuals.Line(parent=line_view.scene, color="white")
         visuals.GridLines(parent=line_view.scene)
@@ -388,7 +386,7 @@ class TraceCanvas:
 
     def update_trace_views(self):
         for view_pos in range(self.view_count):
-            line_data = raw_to_plot(TRACES[(self.root_trace + view_pos) % (len(TRACES))])
+            line_data = self.file_adapter.raw_to_plot(self.file_adapter.TRACES[(self.root_trace + view_pos) % (len(self.file_adapter.TRACES))])
             if view_pos == 0:
                 self.lims = (line_data.T[0].min(), line_data.T[0].max()), (line_data.T[1].min(), line_data.T[1].max())
 
@@ -412,14 +410,3 @@ class TraceCanvas:
 
 
 
-if __name__ == "__main__":
-    # Create the application
-    app = use_app("pyqt6")
-    app.create()
-    # app = QApplication(sys.argv)
-    # Create and show the main window
-    win = Window()
-    win.show()
-    app.run()
-    # Run the event loop
-    # sys.exit(app.exec())

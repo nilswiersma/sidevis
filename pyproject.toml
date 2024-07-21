@@ -1,0 +1,16 @@
+[project]
+name = "sidevis"
+description = "TBA"
+requires-python = "==3.*"
+readme = "README.md"
+dynamic = ["dependencies", "version"]
+
+[build-system]
+requires = ["setuptools", "build", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "sidevis/version.py"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
